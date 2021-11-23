@@ -860,6 +860,7 @@ BAD_VERSION:
 
 int process_header_end(request* req)
 {
+	printf("req->logline: %s\n", req->logline);
 	if (!req->logline)
 	{
 		log_error_doc(req);
@@ -869,6 +870,7 @@ int process_header_end(request* req)
 	}
 
 	/* Percent-decode request */
+	printf("request_uri: %s, query_string:%s\n", req->request_uri, req->query_string);
 	if (unescape_uri(req->request_uri, &(req->query_string)) == 0)
 	{
 		log_error_doc(req);
@@ -889,13 +891,16 @@ int process_header_end(request* req)
 
 	if (vhost_root)
 	{
+		printf("vhost_root: %s\n", vhost_root);
 		char* c;
 		if (!req->header_host)
 		{
+			printf("default_vhost: %s\n", default_vhost);
 			req->host = strdup(default_vhost);
 		}
 		else
 		{
+			printf("default_vhost: %s\n", req->header_host);
 			req->host = strdup(req->header_host);
 		}
 		if (!req->host)
@@ -957,6 +962,7 @@ int process_header_end(request* req)
 
 	req->status = WRITE;
 
+	// 应该是走HTML
 	return init_get(req);       /* get and head */
 }
 

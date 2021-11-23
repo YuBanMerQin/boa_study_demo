@@ -55,9 +55,10 @@ int read_header(request* req)
 			fprintf(stderr, "%s:%d - Parsing headers (\"%s\")\n", __FILE__, __LINE__, check);
 		}
 	}
-	// 接收的小于检查的
+	// 当接受到HTTP的数据时候
 	while (check < (buffer + bytes))
 	{
+		printf("while check < (buffer + bytes): %s testend:%s\n", check, (buffer + bytes));
 		/* check for illegal characters here
 		 * Anything except CR, LF, and US-ASCII - control is legal
 		 * We accept tab but don't do anything special with it.
@@ -73,40 +74,68 @@ int read_header(request* req)
 		switch (req->status)
 		{
 		case READ_HEADER:
+			printf("READ_HEADER\n");
 			if (uc == '\r')
 			{
+				printf("ONE_CR\n");
 				req->status = ONE_CR;
 				req->header_end = check;
 			}
 			else if (uc == '\n')
 			{
+				printf("ONE_LF\n");
 				req->status = ONE_LF;
 				req->header_end = check;
 			}
 			break;
 
 		case ONE_CR:
+			printf("ONE_CR\n");
 			if (uc == '\n')
+			{
+				printf("ONE_LF\n");
 				req->status = ONE_LF;
+			}
 			else if (uc != '\r')
+			{
+				printf("READ_HEADER\n");
 				req->status = READ_HEADER;
+			}
 			break;
 
 		case ONE_LF:
+			printf("ONE_LF\n");
 			/* if here, we've found the end (for sure) of a header */
 			if (uc == '\r') /* could be end o headers */
+			{
+				printf("TWO_CR\n");
 				req->status = TWO_CR;
+			}
 			else if (uc == '\n')
+			{
+				printf("BODY_READ\n");
 				req->status = BODY_READ;
+			}
 			else
+			{
+				printf("READ_HEADER\n");
 				req->status = READ_HEADER;
+			}
 			break;
 
 		case TWO_CR:
+			printf("TWO_CR\n");
 			if (uc == '\n')
+			{
+				// 当有两个换行字符的时候，代表HTTP头已经读取完毕，需要读取HTTP消息体
+				printf("BODY_READ\n");
 				req->status = BODY_READ;
+			}
 			else if (uc != '\r')
+			{
+				printf("READ_HEADER\n");
 				req->status = READ_HEADER;
+			}
 			break;
 
 		default:
@@ -123,6 +152,7 @@ int read_header(request* req)
 
 		if (req->status == ONE_LF)
 		{
+			printf("req->status == ONE_LF\n");
 			*req->header_end = '\0';
 
 			if (req->header_end - req->header_line >= MAX_HEADER_LENGTH)
@@ -201,9 +231,7 @@ int read_header(request* req)
 					if (content_length < 0)
 					{
 						log_error_doc(req);
-						fprintf(stderr,
-								"Invalid Content-Length [%s] on POST!\n",
-								req->content_length);
+						fprintf(stderr,"Invalid Content-Length [%s] on POST!\n",req->content_length);
 						send_r_bad_request(req);
 						return 0;
 					}
@@ -211,9 +239,7 @@ int read_header(request* req)
 						&& content_length > single_post_limit)
 					{
 						log_error_doc(req);
-						fprintf(stderr,
-								"Content-Length [%d] > SinglePostLimit [%d] on POST!\n",
-								content_length, single_post_limit);
+						fprintf(stderr,"Content-Length [%d] > SinglePostLimit [%d] on POST!\n",content_length, single_post_limit);
 						send_r_bad_request(req);
 						return 0;
 					}
@@ -231,7 +257,7 @@ int read_header(request* req)
 					send_r_bad_request(req);
 					return 0;
 				}
-			}                   /* either process_header_end failed or req->method != POST */
+			}     /* either process_header_end failed or req->method != POST */
 			return retval;      /* 0 - close it done, 1 - keep on ready */
 		}                       /* req->status == BODY_READ */
 	}                           /* done processing available buffer */
@@ -240,9 +266,10 @@ int read_header(request* req)
 	log_error_time();
 	fprintf(stderr, "%s:%d - Done processing buffer.  Status: %d\n", __FILE__, __LINE__, req->status);
 #endif
-
+	// 读取HTTP头，上面的循环判断HTTP头读取完毕，下面的读取就不会再进入
 	if (req->status < BODY_READ)
 	{
+		printf("req->status < BODY_READ\n");
 		/* only reached if request is split across more than one packet */
 		unsigned int buf_bytes_left = CLIENT_STREAM_SIZE - req->client_stream_pos;
 		if (buf_bytes_left < 1 || buf_bytes_left > CLIENT_STREAM_SIZE)
@@ -255,22 +282,28 @@ int read_header(request* req)
 		}
 
 		bytes = read(req->fd, buffer + req->client_stream_pos, buf_bytes_left);
-
-		if (bytes < 0)
+		printf("bytes value: %d\n", bytes);
+		if (bytes < 0)// 读取失败
 		{
-			if (errno == EINTR) return 1;
+			if (errno == EINTR)
+			{
+				printf("errno == EINTR");
+				return 1;
+			}
 			else if (errno == EAGAIN || errno == EWOULDBLOCK) /* request blocked */
+			{
+				printf("errno == EAGAIN || errno == EWOULDBLOCK\n");
 				return -1;
+			}
 			log_error_doc(req);
 			perror("header read"); /* don't need to save errno because log_error_doc does */
 			req->response_status = 400;
 			return 0;
 		}
-		else if (bytes == 0)
+		else if (bytes == 0)// 读取结束
 		{
-			if (req->kacount < ka_max &&
-				!req->logline &&
-				req->client_stream_pos == 0)
+			printf("bytes == 0\n");
+			if (req->kacount < ka_max && !req->logline && req->client_stream_pos == 0)
 			{
 				/* A keepalive request wherein we've read
 				 * nothing.
