@@ -55,6 +55,7 @@ int read_header(request* req)
 			fprintf(stderr, "%s:%d - Parsing headers (\"%s\")\n", __FILE__, __LINE__, check);
 		}
 	}
+	// 接收的小于检查的
 	while (check < (buffer + bytes))
 	{
 		/* check for illegal characters here
@@ -62,7 +63,7 @@ int read_header(request* req)
 		 * We accept tab but don't do anything special with it.
 		 */
 		uc = *check;
-		if (uc != '\r' && uc != '\n' && uc != '\t' && (uc < 32 || uc > 127))
+		if (uc != '\r' && uc != '\n' && uc != '\t' && (uc < 32 || uc > 127))// 检查值不在正常ASCII码的范围内
 		{
 			log_error_doc(req);
 			fprintf(stderr, "Illegal character (%d) in stream.\n", (unsigned int)uc);
@@ -243,14 +244,11 @@ int read_header(request* req)
 	if (req->status < BODY_READ)
 	{
 		/* only reached if request is split across more than one packet */
-		unsigned int buf_bytes_left;
-
-		buf_bytes_left = CLIENT_STREAM_SIZE - req->client_stream_pos;
+		unsigned int buf_bytes_left = CLIENT_STREAM_SIZE - req->client_stream_pos;
 		if (buf_bytes_left < 1 || buf_bytes_left > CLIENT_STREAM_SIZE)
 		{
 			log_error_doc(req);
-			fputs("No space left in client stream buffer, closing\n",
-					stderr);
+			fputs("No space left in client stream buffer, closing\n", stderr);
 			req->response_status = 400;
 			req->status = DEAD;
 			return 0;
